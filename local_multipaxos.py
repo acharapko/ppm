@@ -35,6 +35,8 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
     sigma_ms_s = sigma_ms / 1000
     sigma_md_s = sigma_md / 1000
 
+    Rmax = n_p / (N * mu_md + 2 * mu_ms) * 1000
+
     rtt_sigma_s = math.sqrt(sigma_local_s ** 2 + sigma_ms_s ** 2 + sigma_md_s ** 2)
 
     # first fill the "pipeline"
@@ -69,9 +71,6 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
     msgs_processed = {}
     c_msg = 0
     for i in range(0, len(pipeline)):
-        ms = np.random.normal(mu_ms_s, sigma_ms_s)  # time to serialize ith message
-        md = np.random.normal(mu_md_s, sigma_md_s)  # time to deserialize ith message
-
         # if not seralization messages, then these are replies, so count the quorum
         # we hav serialization messages in the pipeline only so they can impact c_msg of l_{qs-1} message
         # in other words, serialization msg adds some more load to the pipeline.
@@ -86,19 +85,108 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
         if i > 0:
             if msg_serialization:
                 # impact of message serialization is different from deserialization
-                c_msg = max(c_msg + ms/n_p + pipeline[i-1][1] - pipeline[i][1], 0)
+                c_msg = max(c_msg + mu_ms_s/n_p + pipeline[i-1][1] - pipeline[i][1], 0)
             else:
-                c_msg = max(c_msg + md/n_p + pipeline[i-1][1] - pipeline[i][1], 0)
+                c_msg = max(c_msg + mu_md_s/n_p + pipeline[i-1][1] - pipeline[i][1], 0)
 
         if not msg_serialization and not msg_from_client and msgs_processed[pipeline[i][0]] == qs - 1:
             # we have enough messages from round pipeline[i][0] to proceed
-            Lr = ms + pipeline[i][2] + c_msg + md  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
+            Lr = mu_ms_s + pipeline[i][2] + c_msg + mu_md_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
             if sim_clients:
                 # if we sim client, then add client communication latency.
                 # network round trip time to receive msg from client and reply back
-                client_rtt = np.random.normal(mu_local_s, sigma_local_s)
-                Lr = Lr + client_rtt
+                Lr = Lr + mu_local_s
             lats.append(Lr)
+
+    return ops, lats
+
+def model_random_round_arrival(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, mu_r, sigma_r, sim_clients=False):
+    # convert everything to seconds
+    mu_local_s = mu_local / 1000
+    sigma_local_s = sigma_local / 1000
+    mu_ms_s = mu_ms / 1000
+    mu_md_s = mu_md / 1000
+    sigma_ms_s = sigma_ms / 1000
+    sigma_md_s = sigma_md / 1000
+
+    rtt_sigma_s = math.sqrt(sigma_local_s ** 2 + sigma_ms_s ** 2 + sigma_md_s ** 2)
+
+    t_round = 0
+    ops = 0
+
+    R = (1 / mu_r)
+    C_a = (sigma_r ** 2) / (mu_r ** 2)
+    lmda = R  # mean rate of arrival in rounds per second
+    mu_sr = 1 / (N * mu_md_s + 2 * mu_ms_s)  # mean rate of service (speed of the pipeline). essentially max throughput
+    p_queue = R * (N * mu_md_s + 2 * mu_ms_s)  # average queue load (prob queue is empty) lmda/mu_sr
+
+    mu_st = (N * mu_md_s + 2 * mu_ms_s)
+    var_st = (N * (sigma_md_s ** 2) + 2 * (sigma_ms_s ** 2))
+    C_st = var_st / mu_st ** 2
+    sigma_st = math.sqrt(var_st)
+
+    # Marchal's approximation for G/G/1 queue
+    L_q = (p_queue**2*(1+C_st)*(C_a+C_st*p_queue**2))/(2*(1-p_queue)*(1+C_st*p_queue**2))
+    wait_queue = L_q / lmda
+
+    print wait_queue
+
+    lats = []
+    while t_round < t:
+        delta_t_round = np.random.normal(mu_r, sigma_r)
+        rtts = np.random.normal(mu_local_s + mu_ms_s + mu_md_s, rtt_sigma_s, N - 1)
+        rtts.sort()
+
+        Lr = mu_ms_s + rtts[qs-2] + wait_queue + mu_md_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
+        if sim_clients:
+            Lr = Lr + mu_local_s
+        lats.append(Lr)
+
+        ops += 1
+        t_round += delta_t_round
+
+    return ops, lats
+
+def model_poisson_round_arrival(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, mu_r, sigma_r, sim_clients=False):
+    # convert everything to seconds
+    mu_local_s = mu_local / 1000
+    sigma_local_s = sigma_local / 1000
+    mu_ms_s = mu_ms / 1000
+    mu_md_s = mu_md / 1000
+    sigma_ms_s = sigma_ms / 1000
+    sigma_md_s = sigma_md / 1000
+
+    rtt_sigma_s = math.sqrt(sigma_local_s ** 2 + sigma_ms_s ** 2 + sigma_md_s ** 2)
+
+    t_round = 0
+    ops = 0
+
+    R = (1 / mu_r)
+
+    lmda = R  # mean rate of arrival in rounds per second
+    mu_sr = 1 / (N * mu_md_s + 2 * mu_ms_s)  # mean rate of service (speed of the pipeline). essentially max throughput
+
+    p_queue = R * (N * mu_md_s + 2 * mu_ms_s)  # average queue load (prob queue is empty) lmda/mu_sr
+    # mu_st = (N * mu_md_s + 2 * mu_ms_s) / (N + 2)
+    var_st = (N * (sigma_md_s ** 2) + 2 * (sigma_ms_s ** 2))
+    sigma_st = math.sqrt(var_st)
+
+    L_q = (lmda ** 2 * sigma_st ** 2 + p_queue**2) / (2*(1 - p_queue))  # from Pollaczek-Khinchine formula
+    wait_queue = L_q / lmda
+
+    lats = []
+    while t_round < t:
+        delta_t_round = np.random.normal(mu_r, sigma_r)
+        rtts = np.random.normal(mu_local_s + mu_ms_s + mu_md_s, rtt_sigma_s, N - 1)
+        rtts.sort()
+
+        Lr = mu_ms_s + rtts[qs-2] + wait_queue + mu_md_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
+        if sim_clients:
+            Lr = Lr + mu_local_s
+        lats.append(Lr)
+
+        ops += 1
+        t_round += delta_t_round
 
     return ops, lats
 

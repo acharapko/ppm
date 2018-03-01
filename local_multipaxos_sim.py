@@ -3,7 +3,7 @@ import numpy as np
 # First version of the model: http://charap.co/do-not-blame-only-network-for-your-paxos-scalability/
 
 t = 60  # sim duration in seconds
-N = 11  # number of nodes in the cluster
+N = 4  # number of nodes in the cluster
 
 qs = N / 2 + 1  # quorum size. For Paxos it is majority
 
@@ -25,6 +25,7 @@ lats = []
 while elapsed_t < t:
     rtts = np.random.normal(mu_local_s+2*ms_s, sigma_local_s, N-1)
     rtts.sort()
+    #print rtts
     # qs is majority, but we assume self reply from leader so we wait for qs-1 messages
     R = rtts[qs-2] + 2 * ms_s
     elapsed_t += R
