@@ -27,9 +27,10 @@ for n in range(3, 11, 2):
     for r in range(start_tp, end_tp, tp_step):
         for i in range(0, repeats):
             print "tick: " + str(n) + "," + str(r) + ","+str(i)
-            mu_r = 1.0 / r
+            mu_r = 1000.0 / r
             sigma_r = mu_r / 0.5
-            numops, simlats = sim.model_random_round_arrival(
+            numops, simlats = sim.sim(
+                t=60,
                 N=n,
                 qs=n / 2 + 1,  # majority quorum
                 mu_local=sim.mu_local,

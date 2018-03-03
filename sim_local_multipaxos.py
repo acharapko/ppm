@@ -5,6 +5,7 @@ import argparse
 parser = argparse.ArgumentParser(description='MultiPaxos Performance Sim/Model')
 
 parser.add_argument('-m', dest="model", action="store_true")
+parser.add_argument('-c', dest="clients", action="store_true")
 parser.add_argument('-t', action="store", default=sim.t, type=int)
 parser.add_argument('-N', action="store", default=sim.N, type=int)
 parser.add_argument('-q', action="store", type=int, default=sim.qs)
@@ -33,8 +34,10 @@ else:
     print '{0: >48}'.format('Model Parameters')
     print '{0:-<80s}'.format('')
 
+print '{0:<40s}{1:10}'.format('Client communication:', args.clients)
 print '{0:<40s}{1:10d} nodes'.format('Cluster size:', args.N)
 print '{0:<40s}{1:10d} nodes'.format('Quorum size:', args.q)
+print '{0:<40s}{1:10d} workers'.format('Number of pipeline workers:', args.p)
 print '{0:<40s}{1:10.3f} ms'.format('Round arrival time:', args.mu_r)
 print '{0:<40s}{1:10.3f} ms'.format('Round arrival std. deviation:', args.sigma_r)
 print '{0:<40s}{1:10.3f} ms'.format('Mean network RTT:', args.mu_net)
@@ -47,7 +50,7 @@ print '{0:-<80s}'.format('')
 
 
 if args.model:
-    numops, simlats = sim.model_random_round_arrival(
+    numops, simlats = sim.sim(
         N=args.N,
         qs=args.q,
         mu_local=args.mu_net,
@@ -58,8 +61,8 @@ if args.model:
         sigma_md=args.sigma_md,
         n_p=args.p,
         mu_r=args.mu_r,
-        sigma_r=args.mu_r,
-        sim_clients=True)
+        sigma_r=args.sigma_r,
+        sim_clients=args.clients)
 else:
     numops, simlats = sim.sim(
         t=args.t,
@@ -73,8 +76,8 @@ else:
         sigma_md=args.sigma_md,
         n_p=args.p,
         mu_r=args.mu_r,
-        sigma_r=args.mu_r,
-        sim_clients=True
+        sigma_r=args.sigma_r,
+        sim_clients=args.clients
     )
 
 tp = numops / float(args.t)
