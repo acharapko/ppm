@@ -12,8 +12,8 @@ tp_step = 250
 n_p = 1
 
 fig, ax = plt.subplots()
-plt.xlabel('Throughput')
-plt.ylabel('Latency')
+plt.xlabel('Throughput (rounds/sec)')
+plt.ylabel('Latency (ms)')
 plt.title('Throughput vs. Latency Simulation')
 plt.rc('lines', linewidth=1)
 plt.rc('axes', prop_cycle=(cycler('color', ['r', 'g', 'b', 'y', 'k'])))

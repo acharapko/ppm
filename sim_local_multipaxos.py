@@ -2,8 +2,9 @@ import local_multipaxos as sim
 import numpy as np
 import argparse
 
-parser = argparse.ArgumentParser(description='MultiPaxos Performance Model')
+parser = argparse.ArgumentParser(description='MultiPaxos Performance Sim/Model')
 
+parser.add_argument('-m', dest="model", action="store_true")
 parser.add_argument('-t', action="store", default=sim.t, type=int)
 parser.add_argument('-N', action="store", default=sim.N, type=int)
 parser.add_argument('-q', action="store", type=int, default=sim.qs)
@@ -23,25 +24,71 @@ parser.add_argument('-Z', dest="sigma_r", action="store", type=float, default=si
 
 args = parser.parse_args()
 
-numops, simlats = sim.sim(
-    t=args.t,
-    N=args.N,
-    qs=args.q,
-    mu_local=args.mu_net,
-    sigma_local=args.sigma_net,
-    mu_ms=args.mu_ms,
-    sigma_ms=args.sigma_ms,
-    mu_md=args.mu_md,
-    sigma_md=args.sigma_md,
-    n_p=args.p,
-    mu_r=args.mu_r,
-    sigma_r=args.mu_r,
-    sim_clients=True
-)
+print '{0:-<80s}'.format('')
+if not args.model:
+    print '{0: >50}'.format('Simulation Parameters')
+    print '{0:-<80s}'.format('')
+    print "Simulation time = " + str(args.t)
+else:
+    print '{0: >48}'.format('Model Parameters')
+    print '{0:-<80s}'.format('')
+
+print '{0:<40s}{1:10d} nodes'.format('Cluster size:', args.N)
+print '{0:<40s}{1:10d} nodes'.format('Quorum size:', args.q)
+print '{0:<40s}{1:10.3f} ms'.format('Round arrival time:', args.mu_r)
+print '{0:<40s}{1:10.3f} ms'.format('Round arrival std. deviation:', args.sigma_r)
+print '{0:<40s}{1:10.3f} ms'.format('Mean network RTT:', args.mu_net)
+print '{0:<40s}{1:10.3f} ms'.format('network RTT std. deviation:', args.sigma_net)
+print '{0:<40s}{1:10.3f} ms'.format('Mean msg deserialization time:', args.mu_md)
+print '{0:<40s}{1:10.3f} ms'.format('Msg deserialization std. deviation:', args.sigma_md)
+print '{0:<40s}{1:10.3f} ms'.format('Mean msg serialization time:', args.mu_ms)
+print '{0:<40s}{1:10.3f} ms'.format('Msg serialization std. deviation:', args.sigma_ms)
+print '{0:-<80s}'.format('')
+
+
+if args.model:
+    numops, simlats = sim.model_random_round_arrival(
+        N=args.N,
+        qs=args.q,
+        mu_local=args.mu_net,
+        sigma_local=args.sigma_net,
+        mu_ms=args.mu_ms,
+        sigma_ms=args.sigma_ms,
+        mu_md=args.mu_md,
+        sigma_md=args.sigma_md,
+        n_p=args.p,
+        mu_r=args.mu_r,
+        sigma_r=args.mu_r,
+        sim_clients=True)
+else:
+    numops, simlats = sim.sim(
+        t=args.t,
+        N=args.N,
+        qs=args.q,
+        mu_local=args.mu_net,
+        sigma_local=args.sigma_net,
+        mu_ms=args.mu_ms,
+        sigma_ms=args.sigma_ms,
+        mu_md=args.mu_md,
+        sigma_md=args.sigma_md,
+        n_p=args.p,
+        mu_r=args.mu_r,
+        sigma_r=args.mu_r,
+        sim_clients=True
+    )
 
 tp = numops / float(args.t)
-print "# of operations: " + str(numops)
-print "TP: " + str(tp)
-av_lat_s = np.average(simlats)
-av_lat = av_lat_s * 1000
-print "Average latency: " + str(av_lat) + " ms"
+
+if args.model:
+    print '{0: >46}'.format('Model Results')
+    print '{0:-<80s}'.format('')
+    print '{0:<40s}{1:10.3f} round/s'.format('Target Throughput:', numops)
+    print '{0:<40s}{1:10.3f} ms'.format('Average round latency:', simlats*1000)
+else:
+    print '{0: >50}'.format('Simulation Results')
+    print '{0:-<80s}'.format('')
+    av_lat_s = np.average(simlats)
+    av_lat = av_lat_s * 1000
+    print '{0:<40s}{1:10.3f} rounds'.format('Rounds Simulated:', numops)
+    print '{0:<40s}{1:10.3f} round/s'.format('Throughput:', tp)
+    print '{0:<40s}{1:10.3f} ms'.format('Average round latency:', av_lat)

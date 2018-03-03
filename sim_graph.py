@@ -5,14 +5,14 @@ from cycler import cycler
 
 repeats = 1
 
-start_tp = 1000
-tp_step = 250
+start_tp = 100
+tp_step = 500
 
 n_p = 1
 
 fig, ax = plt.subplots()
-plt.xlabel('Throughput')
-plt.ylabel('Latency')
+plt.xlabel('Throughput (rounds/sec)')
+plt.ylabel('Latency (ms)')
 plt.title('Throughput vs. Latency Simulation')
 plt.rc('lines', linewidth=1)
 plt.rc('axes', prop_cycle=(cycler('color', ['r', 'g', 'b', 'y', 'k'])))
@@ -21,7 +21,7 @@ plt.rc('axes', prop_cycle=(cycler('color', ['r', 'g', 'b', 'y', 'k'])))
 for n in range(3, 11, 2):
     lats = {}
     Rmax = n_p / (n * sim.mu_md + 2 * sim.mu_ms) * 1000
-    end_tp = int(Rmax) + 1001
+    end_tp = int(Rmax) + 1
     print "end tp = " + str(end_tp)
     print "Rmax = " + str(Rmax)
     for r in range(start_tp, end_tp, tp_step):
@@ -29,8 +29,7 @@ for n in range(3, 11, 2):
             print "tick: " + str(n) + "," + str(r) + ","+str(i)
             mu_r = 1.0 / r
             sigma_r = mu_r / 0.5
-            numops, simlats = sim.sim(
-                t=30,
+            numops, simlats = sim.model_random_round_arrival(
                 N=n,
                 qs=n / 2 + 1,  # majority quorum
                 mu_local=sim.mu_local,
@@ -59,6 +58,6 @@ for n in range(3, 11, 2):
     print lat
     p2 = ax.plot(tp, lat, marker='o', label=str(n) + " Nodes")
 
-plt.ylim(0.0, 3.50)
+plt.ylim(0.0, 2.00)
 legend = ax.legend(loc='lower right', shadow=True)
 plt.show()

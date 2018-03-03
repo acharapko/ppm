@@ -1,4 +1,5 @@
 import numpy as np
+import model
 import math
 
 # Third version of the model
@@ -22,10 +23,14 @@ sigma_md = 0.015
 n_p = 1  # number of pipelines
 
 R = 6000  # Throughput in rounds/sec
-mu_r = 1.0 / R
+mu_r = 1000.0 / R
 sigma_r = mu_r / 0.5  # give it some good round spread
 
 ''' SIMULATION '''
+# This function simulates multi-paxos every round and the pipeline at the round leader.
+# It only accounts for phase-2 repeats
+
+
 def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, mu_r, sigma_r, sim_clients=False):
     # convert everything to seconds
     mu_local_s = mu_local / 1000
@@ -34,6 +39,8 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
     mu_md_s = mu_md / 1000
     sigma_ms_s = sigma_ms / 1000
     sigma_md_s = sigma_md / 1000
+    mu_r_s = mu_r / 1000
+    sigma_r_s = sigma_r / 1000
 
     Rmax = n_p / (N * mu_md + 2 * mu_ms) * 1000
 
@@ -45,7 +52,7 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
     pipeline = []
     while t_round < t:
         #print t_round
-        delta_t_round = np.random.normal(mu_r, sigma_r)
+        delta_t_round = np.random.normal(mu_r_s, sigma_r_s)
         rtts = np.random.normal(mu_local_s + mu_ms_s + mu_md_s, rtt_sigma_s, N - 1)
         rtts.sort()
         # this simulates the leader pipeline. it consists of a single serialization messages
@@ -95,12 +102,20 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
             if sim_clients:
                 # if we sim client, then add client communication latency.
                 # network round trip time to receive msg from client and reply back
-                Lr = Lr + mu_local_s
+                Lr += mu_local_s
             lats.append(Lr)
 
     return ops, lats
 
-def model_random_round_arrival(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, mu_r, sigma_r, sim_clients=False):
+
+''' MODEL '''
+# this function uses queuing theory model to approximate Paxos execution time. It uses Monte Carlo method to get
+# expecting networking delays for different quorums. Network delay is the k-order statistic for Normal sample of N-1
+# message RTT times. In classical quorums, this is very close to mean RTT, however for some flexible quorums
+# network variability may have larger effects.
+
+
+def model_random_round_arrival(N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, mu_r, n_p, sigma_r, sim_clients=False):
     # convert everything to seconds
     mu_local_s = mu_local / 1000
     sigma_local_s = sigma_local / 1000
@@ -108,20 +123,19 @@ def model_random_round_arrival(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms,
     mu_md_s = mu_md / 1000
     sigma_ms_s = sigma_ms / 1000
     sigma_md_s = sigma_md / 1000
+    mu_r_s = mu_r / 1000
+    sigma_r_s = sigma_r / 1000
 
     rtt_sigma_s = math.sqrt(sigma_local_s ** 2 + sigma_ms_s ** 2 + sigma_md_s ** 2)
 
-    t_round = 0
-    ops = 0
-
-    R = (1 / mu_r)
-    C_a = (sigma_r ** 2) / (mu_r ** 2)
+    R = (1 / mu_r_s)
+    C_a = (sigma_r_s ** 2) / (mu_r_s ** 2)
     lmda = R  # mean rate of arrival in rounds per second
-    mu_sr = 1 / (N * mu_md_s + 2 * mu_ms_s)  # mean rate of service (speed of the pipeline). essentially max throughput
-    p_queue = R * (N * mu_md_s + 2 * mu_ms_s)  # average queue load (prob queue is empty) lmda/mu_sr
+    mu_sr = n_p / (N * mu_md_s + 2 * mu_ms_s)  # mean rate of service (speed of the pipeline). essentially max throughput
+    p_queue = (R * (N * mu_md_s + 2 * mu_ms_s)) / n_p  # average queue load (prob queue is empty) lmda/mu_sr
 
-    mu_st = (N * mu_md_s + 2 * mu_ms_s)
-    var_st = (N * (sigma_md_s ** 2) + 2 * (sigma_ms_s ** 2))
+    mu_st = (N * mu_md_s + 2 * mu_ms_s) / n_p
+    var_st = (N * (sigma_md_s ** 2) + 2 * (sigma_ms_s ** 2)) / n_p ** 2
     C_st = var_st / mu_st ** 2
     sigma_st = math.sqrt(var_st)
 
@@ -129,88 +143,10 @@ def model_random_round_arrival(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms,
     L_q = (p_queue**2*(1+C_st)*(C_a+C_st*p_queue**2))/(2*(1-p_queue)*(1+C_st*p_queue**2))
     wait_queue = L_q / lmda
 
-    print wait_queue
+    r_q1 = model.approx_k_order_stat(mu_local_s + mu_ms_s + mu_md_s, rtt_sigma_s, qs - 1, N - 1)
 
-    lats = []
-    while t_round < t:
-        delta_t_round = np.random.normal(mu_r, sigma_r)
-        rtts = np.random.normal(mu_local_s + mu_ms_s + mu_md_s, rtt_sigma_s, N - 1)
-        rtts.sort()
+    Lr = mu_ms_s + r_q1 + wait_queue + mu_md_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
+    if sim_clients:
+        Lr += mu_local_s
 
-        Lr = mu_ms_s + rtts[qs-2] + wait_queue + mu_md_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
-        if sim_clients:
-            Lr = Lr + mu_local_s
-        lats.append(Lr)
-
-        ops += 1
-        t_round += delta_t_round
-
-    return ops, lats
-
-def model_poisson_round_arrival(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, mu_r, sigma_r, sim_clients=False):
-    # convert everything to seconds
-    mu_local_s = mu_local / 1000
-    sigma_local_s = sigma_local / 1000
-    mu_ms_s = mu_ms / 1000
-    mu_md_s = mu_md / 1000
-    sigma_ms_s = sigma_ms / 1000
-    sigma_md_s = sigma_md / 1000
-
-    rtt_sigma_s = math.sqrt(sigma_local_s ** 2 + sigma_ms_s ** 2 + sigma_md_s ** 2)
-
-    t_round = 0
-    ops = 0
-
-    R = (1 / mu_r)
-
-    lmda = R  # mean rate of arrival in rounds per second
-    mu_sr = 1 / (N * mu_md_s + 2 * mu_ms_s)  # mean rate of service (speed of the pipeline). essentially max throughput
-
-    p_queue = R * (N * mu_md_s + 2 * mu_ms_s)  # average queue load (prob queue is empty) lmda/mu_sr
-    # mu_st = (N * mu_md_s + 2 * mu_ms_s) / (N + 2)
-    var_st = (N * (sigma_md_s ** 2) + 2 * (sigma_ms_s ** 2))
-    sigma_st = math.sqrt(var_st)
-
-    L_q = (lmda ** 2 * sigma_st ** 2 + p_queue**2) / (2*(1 - p_queue))  # from Pollaczek-Khinchine formula
-    wait_queue = L_q / lmda
-
-    lats = []
-    while t_round < t:
-        delta_t_round = np.random.normal(mu_r, sigma_r)
-        rtts = np.random.normal(mu_local_s + mu_ms_s + mu_md_s, rtt_sigma_s, N - 1)
-        rtts.sort()
-
-        Lr = mu_ms_s + rtts[qs-2] + wait_queue + mu_md_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
-        if sim_clients:
-            Lr = Lr + mu_local_s
-        lats.append(Lr)
-
-        ops += 1
-        t_round += delta_t_round
-
-    return ops, lats
-
-'''
-numops, simlats = sim(
-    t=t,
-    N=N,
-    qs=qs,
-    mu_local=mu_local,
-    sigma_local=sigma_local,
-    mu_ms=mu_ms,
-    sigma_ms=sigma_ms,
-    mu_md=mu_md,
-    sigma_md=sigma_md,
-    n_p=n_p,
-    mu_r=mu_r,
-    sigma_r=mu_r,
-    sim_clients=True
-)
-
-tp = numops / float(t)
-print "# of operations: " + str(numops)
-print "TP: " + str(tp)
-av_lat_s = np.average(simlats)
-av_lat = av_lat_s * 1000
-print "Average latency: " + str(av_lat) + " ms"
-'''
+    return R, Lr
