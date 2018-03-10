@@ -1,27 +1,29 @@
-import local_multipaxos as sim
+import model_multipaxos as sim
+import paxos_defaults as params
 import numpy as np
 import argparse
+
 
 parser = argparse.ArgumentParser(description='MultiPaxos Performance Sim/Model')
 
 parser.add_argument('-m', dest="model", action="store_true")
 parser.add_argument('-c', dest="clients", action="store_true")
-parser.add_argument('-t', action="store", default=sim.t, type=int)
-parser.add_argument('-N', action="store", default=sim.N, type=int)
-parser.add_argument('-q', action="store", type=int, default=sim.qs)
-parser.add_argument('-r', dest="mu_net", action="store", type=float, default=sim.mu_local)
-parser.add_argument('-R', dest="sigma_net", action="store", type=float, default=sim.sigma_local)
+parser.add_argument('-t', action="store", default=params.t, type=int)
+parser.add_argument('-N', action="store", default=params.N, type=int)
+parser.add_argument('-q', action="store", type=int, default=params.qs)
+parser.add_argument('-r', dest="mu_net", action="store", type=float, default=params.mu_local)
+parser.add_argument('-R', dest="sigma_net", action="store", type=float, default=params.sigma_local)
 
-parser.add_argument('-s', dest="mu_ms", action="store", type=float, default=sim.mu_ms)
-parser.add_argument('-S', dest="sigma_ms", action="store", type=float, default=sim.sigma_ms)
+parser.add_argument('-s', dest="mu_ms", action="store", type=float, default=params.mu_ms)
+parser.add_argument('-S', dest="sigma_ms", action="store", type=float, default=params.sigma_ms)
 
-parser.add_argument('-d', dest="mu_md", action="store", type=float, default=sim.mu_md)
-parser.add_argument('-D', dest="sigma_md", action="store", type=float, default=sim.sigma_md)
+parser.add_argument('-d', dest="mu_md", action="store", type=float, default=params.mu_md)
+parser.add_argument('-D', dest="sigma_md", action="store", type=float, default=params.sigma_md)
 
 parser.add_argument('-p', action="store", type=int, default=1)
 
-parser.add_argument('-z', dest="mu_r", action="store", type=float, default=sim.mu_r)
-parser.add_argument('-Z', dest="sigma_r", action="store", type=float, default=sim.sigma_r)
+parser.add_argument('-z', dest="mu_r", action="store", type=float, default=params.mu_r)
+parser.add_argument('-Z', dest="sigma_r", action="store", type=float, default=params.sigma_r)
 
 args = parser.parse_args()
 
@@ -50,7 +52,7 @@ print '{0:-<80s}'.format('')
 
 
 if args.model:
-    numops, simlats = sim.sim(
+    numops, simlats = sim.model_random_round_arrival(
         N=args.N,
         qs=args.q,
         mu_local=args.mu_net,

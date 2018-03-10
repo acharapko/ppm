@@ -4,28 +4,6 @@ import math
 
 # Third version of the model
 
-''' REFERENCE SAMPLE VALUES FOR SIMULATION PARAMETERS '''
-
-t = 60  # sim duration in seconds
-N = 3  # number of nodes in the cluster
-
-qs = N / 2 + 1  # quorum size. For Paxos it is majority
-
-mu_local = 0.427  # network RTT mean in ms
-sigma_local = 0.0476  # network RTT sigma in ms
-
-mu_ms = 0.001  # message serialization overhead in ms
-sigma_ms = 0.005
-
-mu_md = 0.025  # message deserialization overhead in ms
-sigma_md = 0.015
-
-n_p = 1  # number of pipelines
-
-R = 6000  # Throughput in rounds/sec
-mu_r = 1000.0 / R
-sigma_r = mu_r / 0.5  # give it some good round spread
-
 ''' SIMULATION '''
 # This function simulates multi-paxos every round and the pipeline at the round leader.
 # It only accounts for phase-2 repeats
@@ -102,7 +80,7 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
             if sim_clients:
                 # if we sim client, then add client communication latency.
                 # network round trip time to receive msg from client and reply back
-                Lr += mu_local_s
+                Lr += mu_local_s + mu_ms_s + mu_ms_s
             lats.append(Lr)
 
     return ops, lats
@@ -126,27 +104,23 @@ def model_random_round_arrival(N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu
     mu_r_s = mu_r / 1000
     sigma_r_s = sigma_r / 1000
 
+    R = 1000.0/mu_r
+
     rtt_sigma_s = math.sqrt(sigma_local_s ** 2 + sigma_ms_s ** 2 + sigma_md_s ** 2)
+    num_serialize = N
+    num_deserialize = 2
+    if not sim_clients:
+        num_serialize -= 1
+        num_deserialize -= 1
 
-    R = (1 / mu_r_s)
-    C_a = (sigma_r_s ** 2) / (mu_r_s ** 2)
-    lmda = R  # mean rate of arrival in rounds per second
-    mu_sr = n_p / (N * mu_md_s + 2 * mu_ms_s)  # mean rate of service (speed of the pipeline). essentially max throughput
-    p_queue = (R * (N * mu_md_s + 2 * mu_ms_s)) / n_p  # average queue load (prob queue is empty) lmda/mu_sr
-
-    mu_st = (N * mu_md_s + 2 * mu_ms_s) / n_p
-    var_st = (N * (sigma_md_s ** 2) + 2 * (sigma_ms_s ** 2)) / n_p ** 2
-    C_st = var_st / mu_st ** 2
-    sigma_st = math.sqrt(var_st)
-
-    # Marchal's approximation for G/G/1 queue
-    L_q = (p_queue**2*(1+C_st)*(C_a+C_st*p_queue**2))/(2*(1-p_queue)*(1+C_st*p_queue**2))
-    wait_queue = L_q / lmda
+    wait_queue = model.marchal_mean_queue_wait_time(num_d=num_serialize, num_s=num_deserialize, mu_md_s=mu_md_s,
+                                                    sigma_md_s=sigma_md_s, mu_ms_s=mu_ms_s, sigma_ms_s=sigma_ms_s,
+                                                    n_p=n_p, mu_r_s=mu_r_s, sigma_r_s=sigma_r_s)
 
     r_q1 = model.approx_k_order_stat(mu_local_s + mu_ms_s + mu_md_s, rtt_sigma_s, qs - 1, N - 1)
 
     Lr = mu_ms_s + r_q1 + wait_queue + mu_md_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
     if sim_clients:
-        Lr += mu_local_s
+        Lr += mu_local_s + mu_ms_s + mu_ms_s
 
     return R, Lr
