@@ -28,10 +28,10 @@ while r < end_tp:
         tp_step = 100
     tp.append(r)
     mu_r = 1000.0 / r
-    #r += tp_step
+    r += tp_step
     sigma_r = mu_r / 0.5
 
-    print params.sigma_ms
+    #print params.sigma_ms
 
     L_local_ops, L_remote_ops, L_average_round = model.model_random_round_arrival(
         rows=params.rows,
@@ -59,8 +59,8 @@ while r < end_tp:
     L_region = np.sum(L_average_round, axis=0)
     L_region /= params.rows
     L_region *= 1000  # convert from sec to ms
-    print "L_remote_ops:"
-    print L_remote_ops
+    #print "L_remote_ops:"
+    #print L_remote_ops
     if len(lats) == 0:
         for i in range(0, len(L_region)):
             lats.append([])
@@ -75,6 +75,6 @@ for i in range(0, len(lats)):
     p2 = ax.plot(tp, lats[i], marker='o', label=lbl[i])
 
 
-plt.ylim(0.0, 2000.00)
+plt.ylim(0.0, 100.00)
 legend = ax.legend(loc='upper left', shadow=True)
 plt.show()

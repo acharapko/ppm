@@ -90,7 +90,7 @@ def compute_remote_p2_counts(cols, rows, node_shares, locality, ccp, R):
 def compute_queue_wait(cols, rws, q1s, q2regions, p_local_at_node, p_local_forward, p_remote_fwd, p_steal,
                        mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, mu_round, sigma_r_s, n_p):
 
-    wait_queue = np.empty((rws, cols))
+    wait_queue = np.zeros((rws, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rws):
 
@@ -100,12 +100,7 @@ def compute_queue_wait(cols, rws, q1s, q2regions, p_local_at_node, p_local_forwa
             p_l_fwd = p_local_forward[nodeid][zone]
             p_r_fwd = p_remote_fwd[nodeid][zone]
             p_s = p_steal[nodeid][zone]
-            '''
-            print "p local at node = " + str(p_l)
-            print "p local forward = " + str(p_l_fwd)
-            print "p remote fwd = " + str(p_r_fwd)
-            print "p steal = " + str(p_s)
-            '''
+
             # so, we always have a phase 2 for every operation: region_size deserialization + 2 serializations
             # but in p_local_forward ratio of requests we forward: 1 msg serialization/deserialization
             # same for remote forward
@@ -121,20 +116,17 @@ def compute_queue_wait(cols, rws, q1s, q2regions, p_local_at_node, p_local_forwa
                                                             mu_md_s=mu_md_s, sigma_md_s=sigma_md_s, mu_ms_s=mu_ms_s,
                                                             sigma_ms_s=sigma_ms_s, n_p=n_p, mu_r_s=mu_r_s,
                                                             sigma_r_s=sigma_r_s)
-            '''
-            print "mu_r_s = " + str(mu_r_s)
-            print "num_deserializations = " + str(num_deserializations)
-            print "num_serializations = " + str(num_serializations)
-            print "wait_queue = " + str(wait_queue[nodeid][zone])
-            print "----"
-            '''
+
+
+    #print "queue wait:"
+    #print wait_queue
 
     return wait_queue
 
 
 def compute_local_phase2(cols, rows, mu_local_s, sigma_local_s, mu_ms_s, sigma_ms_s, mu_md_s, sigma_md_s,
                          mu_remote_s, sigma_remote_s, qw, q2regions, q2nodes_per_column):
-    L_local_at_node = np.empty((rows, cols))
+    L_local_at_node = np.zeros((rows, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rows):
             # now lets calculate the latencies for different modes
@@ -164,7 +156,7 @@ def compute_local_phase2(cols, rows, mu_local_s, sigma_local_s, mu_ms_s, sigma_m
 
 
 def compute_local_fwd_phase2(cols, rows, mu_local_s, mu_remote_s, q2regions, L_local, node_shares):
-    L_local_fwd = np.empty((rows, cols))
+    L_local_fwd = np.zeros((rows, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rows):
 
@@ -195,7 +187,7 @@ def compute_local_fwd_phase2(cols, rows, mu_local_s, mu_remote_s, q2regions, L_l
 
 
 def compute_remote_fwd_phase2(cols, rows, mu_remote_s, q2regions, L_local, node_shares):
-    L_remote_fwd = np.empty((rows, cols))
+    L_remote_fwd = np.zeros((rows, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rows):
 
@@ -218,7 +210,7 @@ def compute_remote_fwd_phase2(cols, rows, mu_remote_s, q2regions, L_local, node_
 
 
 def compute_remote_steal(cols, rows, mu_remote_s, L_local):
-    L_steal = np.empty((rows, cols))
+    L_steal = np.zeros((rows, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rows):
 
@@ -253,6 +245,7 @@ def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q
     R = 1.0 / mu_r_s
 
     zone_object_ownership = np.sum(object_ownership, axis=0)
+    #print "-------------------------------------------"
     #print zone_object_ownership
 
     node_shares = compute_node_shares(cols, rows, object_ownership, zone_object_ownership, q2regions)
@@ -264,27 +257,19 @@ def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q
     p2_counts_local = compute_local_p2_counts(cols, rows, q2regions, node_shares, locality, client_contact_probability, R)
     p2_counts_remote = compute_remote_p2_counts(cols, rows, node_shares, locality, client_contact_probability, R)
 
-    time.sleep(0.1)
-
-
     p2_counts = p2_counts_local + p2_counts_remote
 
-
     mu_round = 1.0 / p2_counts
-    #print "mu round interval:"
-    #print mu_round
 
-    qw = compute_queue_wait(cols, rows, q1s, q2regions, p_local_at_node, p_local_forward, p_remote_fwd, p_steal,
+
+    queue_wait = compute_queue_wait(cols, rows, q1s, q2regions, p_local_at_node, p_local_forward, p_remote_fwd, p_steal,
                             mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, mu_round, sigma_r_s, n_p)
 
-    #print "queue wait:"
-    #print qw
+
 
     l_loc = compute_local_phase2(cols, rows, mu_local_s, sigma_local_s, mu_ms_s, sigma_ms_s, mu_md_s,
-                                           sigma_md_s, mu_remote_s, sigma_remote_s, qw, q2regions, q2nodes_per_column)
+                                           sigma_md_s, mu_remote_s, sigma_remote_s, queue_wait, q2regions, q2nodes_per_column)
 
-    #print "l_loc:"
-    #print l_loc
 
     L_local_fwd = compute_local_fwd_phase2(cols, rows, mu_local_s, mu_remote_s, q2regions, l_loc, node_shares)
 
@@ -300,7 +285,7 @@ def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q
 
     #print "L_steal:"
     #print L_steal
-    print p_local_at_node
+    #print p_local_at_node
     L_local_ops = p_local_at_node * l_loc + p_local_forward * L_local_fwd
     L_remote_ops = p_remote_fwd * L_remote_fwd + p_steal * L_steal
     L_average_round = L_local_ops + L_remote_ops
@@ -309,36 +294,3 @@ def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q
     #print L_average_round
 
     return L_local_ops, L_remote_ops, L_average_round
-
-'''
-model_random_round_arrival(
-    rws=rows,
-    cols=columns,
-    q2regions=q2regions,
-    q1nodes_per_column=q1nodes_per_column,
-    q1s=q1s,
-    q2nodes_per_column=q2nodes_per_column,
-    mu_local=mu_local,
-    sigma_local=sigma_local,
-    mu_ms=mu_ms,
-    sigma_ms=sigma_ms,
-    mu_md=mu_md,
-    object_ownership=object_ownership,
-    sigma_md=sigma_md,
-    n_p=n_p,
-    mu_r=mu_r,
-    sigma_r=mu_r,
-    mu_remote=mu_remote,
-    sigma_remote=sigma_remote,
-    client_contact_probability=client_contact_probability,
-    locality=locality,
-    p_remote_steal=p_remote_steal
-)
-
-tp = numops / float(t)
-print "# of operations: " + str(numops)
-print "TP: " + str(tp)
-av_lat_s = np.average(simlats)
-av_lat = av_lat_s * 1000
-print "Average latency: " + str(av_lat) + " ms"
-'''
