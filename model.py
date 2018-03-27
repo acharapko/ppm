@@ -12,6 +12,19 @@ def approx_k_order_stat(mu, sigma, k, n, repeats=200):
 
     return np.average(ks)
 
+def approx_k_order_stat_paxos_wan(mu, sigma, k, n, leader, repeats=200):
+    ks = []
+    for r in range(0, repeats):
+        items = []
+        for i in range(0, n):
+            if i != leader:
+                items.append(np.random.normal(mu[leader][i], sigma[leader][i]))
+
+        items.sort()
+        ks.append(items[k-1])
+
+    return np.average(ks)
+
 def approx_k_order_stat_wpaxos_zone(mu, sigma,qw, k, n, repeats=200, exclude=-1):
     ks = []
     for r in range(0, repeats):

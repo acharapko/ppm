@@ -1,4 +1,6 @@
-# REFERENCE SAMPLE VALUES FOR MULTIPAXOS/FPAXOS PARAMETERS
+import numpy as np
+
+#  REFERENCE SAMPLE VALUES FOR MULTIPAXOS/FPAXOS PARAMETERS
 t = 60  # sim duration in seconds
 N = 3  # number of nodes in the cluster
 
@@ -18,3 +20,8 @@ n_p = 1  # number of pipelines
 R = 6000  # Throughput in rounds/sec
 mu_r = 1000.0 / R
 sigma_r = mu_r / 0.5  # give it some good round spread
+
+# nodes form a graph with edges being communication links, and weights being mean communication latencies
+# this parameter is used by model_multipaxos_wan when distances between paxos nodes are not identical
+mu_nodes = np.loadtxt("params/mu_net_remote.csv", delimiter=",")
+sigma_nodes = np.loadtxt("params/sigma_net_remote.csv", delimiter=",")

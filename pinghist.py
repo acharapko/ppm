@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.mlab as mlab
 import matplotlib.pyplot as plt
 
-#ping = np.loadtxt("local_ping.txt")
+#ping = np.loadtxt("params/local_ping.txt")
 ping = np.loadtxt("params/remote_ping.txt")
 
 mu = np.average(ping)
