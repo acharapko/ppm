@@ -245,12 +245,8 @@ def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q
     R = 1.0 / mu_r_s
 
     zone_object_ownership = np.sum(object_ownership, axis=0)
-    #print "-------------------------------------------"
-    #print zone_object_ownership
 
     node_shares = compute_node_shares(cols, rows, object_ownership, zone_object_ownership, q2regions)
-    #print "node shares:"
-    #print node_shares
     p_local_at_node, p_local_forward, p_steal, p_remote_fwd = compute_probabilities(cols, rows, node_shares, locality, p_remote_steal)
 
 
@@ -266,31 +262,18 @@ def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q
                             mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, mu_round, sigma_r_s, n_p)
 
 
-
     l_loc = compute_local_phase2(cols, rows, mu_local_s, sigma_local_s, mu_ms_s, sigma_ms_s, mu_md_s,
                                            sigma_md_s, mu_remote_s, sigma_remote_s, queue_wait, q2regions, q2nodes_per_column)
 
 
     L_local_fwd = compute_local_fwd_phase2(cols, rows, mu_local_s, mu_remote_s, q2regions, l_loc, node_shares)
 
-    #print "L_local_fwd:"
-    #print L_local_fwd
-
     L_remote_fwd = compute_remote_fwd_phase2(cols, rows, mu_remote_s, q2regions, l_loc, node_shares)
-
-    #print "L_remote_fwd:"
-    #print L_remote_fwd
 
     L_steal = compute_remote_steal(cols, rows, mu_remote_s, l_loc)
 
-    #print "L_steal:"
-    #print L_steal
-    #print p_local_at_node
     L_local_ops = p_local_at_node * l_loc + p_local_forward * L_local_fwd
     L_remote_ops = p_remote_fwd * L_remote_fwd + p_steal * L_steal
     L_average_round = L_local_ops + L_remote_ops
-
-    #print "L_average_round:"
-    #print L_average_round
 
     return L_local_ops, L_remote_ops, L_average_round
