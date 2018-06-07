@@ -15,7 +15,7 @@ n, bins, patches = plt.hist(ping, 40, normed=1, facecolor='green')
 y = mlab.normpdf(bins, mu, sigma)
 l = plt.plot(bins, y, 'r-', linewidth=1)
 #print y
-plt.xlabel('Local Ping Latency (ms)')
+plt.xlabel('WAN Ping Latency VA to OR (ms)')
 plt.ylabel('Probability')
 plt.title(r'$\mathrm{AWS\ Latency:}\ \mu='+str(mu)+',\ \sigma='+str(sigma)+'$')
 

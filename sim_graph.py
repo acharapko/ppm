@@ -6,26 +6,34 @@ from cycler import cycler
 
 repeats = 1
 
-start_tp = 100
-tp_step = 500
+start_tp = 5
+tp_step = 200
 
 n_p = 1
 
 fig, ax = plt.subplots()
 plt.xlabel('Throughput (rounds/sec)')
 plt.ylabel('Latency (ms)')
-plt.title('Throughput vs. Latency [Model]')
+#plt.title('Throughput vs. Latency [Model]')
 plt.rc('lines', linewidth=1)
-plt.rc('axes', prop_cycle=(cycler('color', ['r', 'g', 'b', 'y', 'k'])))
+colors = ['g', 'r', 'b', 'c', 'k']
+markers = ['o', 's', '*', 'X', 'D']
+colorID = 0
 
-
-for n in range(3, 11, 2):
+for n in range(300, 1300, 200):
     lats = {}
-    Rmax = n_p / (n * params.mu_md + 2 * params.mu_ms) * 1000
-    end_tp = int(Rmax) + 1
+    Rmax = model.computeRmax(n, n_p, params.mu_md, params.mu_ms, params.ttx)
+    tp_step = 5
+    end_tp = int(Rmax)-4
     print "end tp = " + str(end_tp)
     print "Rmax = " + str(Rmax)
-    for r in range(start_tp, end_tp, tp_step):
+    tp = []
+    r = start_tp
+    #for r in range(start_tp, end_tp, tp_step):
+    while r < end_tp:
+
+        tp.append(r)
+        r += tp_step
         for i in range(0, repeats):
             print "tick: " + str(n) + "," + str(r) + ","+str(i)
             mu_r = 1000.0 / r
@@ -39,6 +47,8 @@ for n in range(3, 11, 2):
                 sigma_ms=params.sigma_ms,
                 mu_md=params.mu_md,
                 sigma_md=params.sigma_md,
+                ttx=params.ttx,
+                ttx_stddev=params.ttx_stddev,
                 n_p=n_p,
                 mu_r=mu_r,
                 sigma_r=sigma_r,
@@ -54,11 +64,12 @@ for n in range(3, 11, 2):
         lats[r] /= repeats
         # print lats
 
-    tp = range(start_tp, end_tp, tp_step)
+    #tp = range(start_tp, end_tp, tp_step)
     lat = [lats[key] for key in sorted(lats.keys(), reverse=False)]
     print lat
-    p2 = ax.plot(tp, lat, marker='o', label=str(n) + " Nodes")
+    p2 = ax.plot(tp, lat, marker=markers[colorID % 5], color=colors[colorID % 5], label=str(n) + " Nodes")
+    colorID += 1
 
-plt.ylim(0.0, 3.00)
+plt.ylim(0,500)
 legend = ax.legend(loc='lower right', shadow=True)
 plt.show()

@@ -11,8 +11,8 @@ def get_msg_stats(N, conflict_rate, mu_ms, mu_md, n_p, R, sim_clients):
     num_deserialize = []
     for n in range(0, N):
         rounds_as_follower_per_leader_round = (np.sum(R) - R[n]) / R[n]
-        ns = 1 + conflict_rate * 1 + rounds_as_follower_per_leader_round
-        nd = (N-1) + conflict_rate * (N-1) + rounds_as_follower_per_leader_round
+        ns = 1 + conflict_rate * 1 + rounds_as_follower_per_leader_round + conflict_rate * rounds_as_follower_per_leader_round
+        nd = (N-1) + conflict_rate * (N-1) + rounds_as_follower_per_leader_round + conflict_rate * rounds_as_follower_per_leader_round
 
         if sim_clients:
             ns += 1
@@ -21,26 +21,27 @@ def get_msg_stats(N, conflict_rate, mu_ms, mu_md, n_p, R, sim_clients):
         num_deserialize.append(nd)
         num_serialize.append(ns)
         Rmax.append(n_p / (mu_md * nd + mu_ms * ns) * 1000)  # to req/sec
+
     return num_serialize, num_deserialize
 
 
-def get_max_throughput(N, conflict_rate, mu_ms, mu_md, n_p, sim_clients):
+def get_max_throughput(N, conflict_rate, mu_ms, mu_md, ttx, n_p, sim_clients):
 
     Rmax = []
     for n in range(0, N):
         rounds_as_follower_per_leader_round = N - 1
-        ns = 1 + conflict_rate * 1 + rounds_as_follower_per_leader_round
-        nd = (N-1) + conflict_rate * (N-1) + rounds_as_follower_per_leader_round
+        ns = 1 + conflict_rate * 1 + rounds_as_follower_per_leader_round + conflict_rate * rounds_as_follower_per_leader_round
+        nd = (N-1) + conflict_rate * (N-1) + rounds_as_follower_per_leader_round + conflict_rate * rounds_as_follower_per_leader_round
 
         if sim_clients:
             ns += 1
             nd += 1
 
-        Rmax.append(n_p / (mu_md * nd + mu_ms * ns) * 1000)  # to req/sec
+        Rmax.append(n_p / ((mu_md + ttx) * nd + (mu_ms + ttx) * ns) * 1000)  # to req/sec
     return Rmax
 
 
-def model_random_round_arrival(mu_nodes, sigma_nodes, mu_local, qs, fqs, conflict_rate, mu_ms, sigma_ms, mu_md, sigma_md, mu_r, sigma_r, n_p, sim_clients=False):
+def model_random_round_arrival(mu_nodes, sigma_nodes, mu_local, qs, fqs, conflict_rate, mu_ms, sigma_ms, mu_md, sigma_md, ttx, ttx_stddev, mu_r, sigma_r, n_p, sim_clients=False):
     # convert everything to seconds
     N = len(mu_nodes)
     mu_local_s = mu_local / 1000
@@ -52,7 +53,8 @@ def model_random_round_arrival(mu_nodes, sigma_nodes, mu_local, qs, fqs, conflic
     sigma_md_s = sigma_md / 1000
     mu_r_s = np.array(mu_r) / 1000
     sigma_r_s = np.array(sigma_r) / 1000
-
+    ttx_s = ttx / 1000
+    ttx_stddev_s = ttx_stddev / 1000
 
     Lr = []
 
@@ -67,20 +69,28 @@ def model_random_round_arrival(mu_nodes, sigma_nodes, mu_local, qs, fqs, conflic
     # or 2 serailiazations and 2 deserializations for full paxos round
 
     num_serialize, num_deserialize = get_msg_stats(N, conflict_rate, mu_ms, mu_md, n_p, R, sim_clients)
-
+    print N, num_serialize, num_deserialize
     for n in range(0, N):
+
 
         wait_queue = model.marchal_mean_queue_wait_time(num_d=num_deserialize[n], num_s=num_serialize[n], mu_md_s=mu_md_s,
                                                         sigma_md_s=sigma_md_s, mu_ms_s=mu_ms_s, sigma_ms_s=sigma_ms_s,
+                                                        ttx_s=ttx_s, ttx_stddev_s=ttx_stddev_s,
                                                         n_p=n_p, mu_r_s=mu_r_s[n], sigma_r_s=sigma_r_s[n])
 
-        r_fast_q = model.approx_k_order_stat_paxos_wan(mu_nodes_s, sigma_nodes_s, fqs-1, N, n)
+        print "wait_queue = " + str(wait_queue)
 
-        r_slow_q = model.approx_k_order_stat_paxos_wan(mu_nodes_s, sigma_nodes_s, qs-1, N, n)
+        r_fast_q = model.approx_k_order_stat_paxos_wan(mu_nodes_s, sigma_nodes_s, mu_ms_s+wait_queue, sigma_ms_s, mu_md_s, sigma_md_s, ttx_s, ttx_stddev_s, fqs-1, N, n)
+        #r_fast_q = model.approx_k_order_stat_paxos_wan(mu_nodes_s, sigma_nodes_s, mu_ms_s, sigma_ms_s, mu_md_s, sigma_md_s, ttx_s, ttx_stddev_s, fqs-1, N, n)
 
-        L = mu_ms_s + r_fast_q + (conflict_rate * r_slow_q) + wait_queue + mu_md_s
+        r_slow_q = model.approx_k_order_stat_paxos_wan(mu_nodes_s, sigma_nodes_s, mu_ms_s+wait_queue, sigma_ms_s, mu_md_s, sigma_md_s, ttx_s, ttx_stddev_s, qs-1, N, n)
+        #r_slow_q = model.approx_k_order_stat_paxos_wan(mu_nodes_s, sigma_nodes_s, mu_ms_s, sigma_ms_s, mu_md_s, sigma_md_s, ttx_s, ttx_stddev_s, qs-1, N, n)
+
+        #L = mu_ms_s + r_fast_q  + (conflict_rate * (r_slow_q + wait_queue)) + 2 * wait_queue + mu_md_s + 2 * ttx_s
+        L = mu_ms_s + r_fast_q  + (conflict_rate * r_slow_q) + wait_queue + mu_md_s + 2 * ttx_s
+
         if sim_clients:
-            L += mu_local_s + mu_ms_s + mu_ms_s
+            L += mu_local_s + mu_ms_s + mu_md_s + 2 * ttx_s
 
         Lr.append(L)
 

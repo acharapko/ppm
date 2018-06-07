@@ -14,7 +14,7 @@ import time
 
 
 def compute_node_shares(cols, rows, object_ownership, zone_object_ownership, q2regions):
-    node_shares = np.empty((rows, cols))
+    node_shares = np.zeros((rows, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rows):
             # we are doing nodeid in region
@@ -29,18 +29,20 @@ def compute_node_shares(cols, rows, object_ownership, zone_object_ownership, q2r
             node_shares[nodeid][zone] = object_ownership[nodeid][zone] / regions_ownership
     return node_shares
 
+
 def compute_probabilities(cols, rows, node_shares, locality, p_remote_steal):
-    p_local = np.empty((rows, cols))
-    p_local_forward = np.empty((rows, cols))
-    p_steal = np.empty((rows, cols))
-    p_remote_fwd = np.empty((rows, cols))
+    p_local = np.zeros((rows, cols))
+    p_local_forward = np.zeros((rows, cols))
+    p_steal = np.zeros((rows, cols))
+    p_remote_fwd = np.zeros((rows, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rows):
             # we are doing nodeid in region
 
             node_share = node_shares[nodeid][zone]
 
-            #  probability for a request to be forwarded
+            # probability for a request to be forwarded
+            # print nodeid, zone
             p_local[nodeid][zone] = locality[zone][zone] * node_share
             p_local_forward[nodeid][zone] = locality[zone][zone] * (1-node_share)
             p_remote = 1 - locality[zone][zone]
@@ -51,7 +53,7 @@ def compute_probabilities(cols, rows, node_shares, locality, p_remote_steal):
 
 
 def compute_local_p2_counts(cols, rows, q2regions, node_shares, locality, client_contact_probability, R):
-    p2_counts = np.empty((rows, cols))
+    p2_counts = np.zeros((rows, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rows):
 
@@ -69,7 +71,7 @@ def compute_local_p2_counts(cols, rows, q2regions, node_shares, locality, client
 
 
 def compute_remote_p2_counts(cols, rows, node_shares, locality, ccp, R):
-    p2_counts = np.empty((rows, cols))
+    p2_counts = np.zeros((rows, cols))
     for zone in range(0, cols):
         for nodeid in range(0, rows):
 
@@ -82,13 +84,11 @@ def compute_remote_p2_counts(cols, rows, node_shares, locality, ccp, R):
                         #print node_shares[rnid][region_zone]
                         p2_counts[fwd_nodeid][fwd_zone] += node_r * node_shares[fwd_nodeid][fwd_zone] * locality[zone][fwd_zone]
 
-    # print "remote p2_counts:"
-    # print p2_counts
     return p2_counts
 
 
 def compute_queue_wait(cols, rws, q1s, q2regions, p_local_at_node, p_local_forward, p_remote_fwd, p_steal,
-                       mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, mu_round, sigma_r_s, n_p):
+                       mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, ttx_s, ttx_stddev_s, mu_round, sigma_r_s, n_p):
 
     wait_queue = np.zeros((rws, cols))
     for zone in range(0, cols):
@@ -108,18 +108,41 @@ def compute_queue_wait(cols, rws, q1s, q2regions, p_local_at_node, p_local_forwa
             num_deserializations = region_size + p_l_fwd * 1 + p_r_fwd * 1 + p_s * q1s
             num_serializations = 2 + p_l_fwd * 1 + p_r_fwd * 1 + p_s * 1
 
+            print "num_deserializations, num_serializations"
+            print num_deserializations, num_serializations
+
             # however, we also receive FWD requests that add to the queue
             # compute how many fwd requests this node can get
             # number of local forwards TO this node
             mu_r_s = mu_round[nodeid][zone]
             wait_queue[nodeid][zone] = model.marchal_mean_queue_wait_time(num_d=num_deserializations, num_s=num_serializations,
                                                             mu_md_s=mu_md_s, sigma_md_s=sigma_md_s, mu_ms_s=mu_ms_s,
+                                                            ttx_s=ttx_s, ttx_stddev_s=ttx_stddev_s,
                                                             sigma_ms_s=sigma_ms_s, n_p=n_p, mu_r_s=mu_r_s,
                                                             sigma_r_s=sigma_r_s)
 
+    return wait_queue
 
-    #print "queue wait:"
-    #print wait_queue
+
+def compute_queue_wait_dynamo(cols, rws, q2regions,
+                       mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, ttx_s, ttx_stddev_s, mu_round, sigma_r_s, n_p):
+
+    wait_queue = np.zeros((rws, cols))
+    for zone in range(0, cols):
+        for nodeid in range(0, rws):
+
+            region_size = len(q2regions[zone][0]) * rws
+
+            num_deserializations = region_size
+            num_serializations = 2
+
+            mu_r_s = mu_round[nodeid][zone]
+            print mu_r_s
+            wait_queue[nodeid][zone] = model.marchal_mean_queue_wait_time(num_d=num_deserializations, num_s=num_serializations,
+                                                            mu_md_s=mu_md_s, sigma_md_s=sigma_md_s, mu_ms_s=mu_ms_s,
+                                                            ttx_s=ttx_s, ttx_stddev_s=ttx_stddev_s,
+                                                            sigma_ms_s=sigma_ms_s, n_p=n_p, mu_r_s=mu_r_s,
+                                                            sigma_r_s=sigma_r_s)
 
     return wait_queue
 
@@ -228,7 +251,7 @@ def compute_remote_steal(cols, rows, mu_remote_s, L_local):
 
 ''' Model '''
 def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q2nodes_per_column, mu_local,
-                               sigma_local, mu_remote, sigma_remote, mu_ms, sigma_ms, mu_md, object_ownership,
+                               sigma_local, mu_remote, sigma_remote, mu_ms, sigma_ms, mu_md, ttx, ttx_stddev, object_ownership,
                                sigma_md, n_p, mu_r, sigma_r, client_contact_probability, locality, p_remote_steal):
     # convert everything to seconds
     mu_local_s = mu_local / 1000
@@ -241,25 +264,36 @@ def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q
     sigma_remote_s = sigma_remote / 1000
     mu_r_s = mu_r / 1000
     sigma_r_s = sigma_r / 1000
+    ttx_s = ttx / 1000
+    ttx_stddev_s = ttx_stddev / 1000
 
     R = 1.0 / mu_r_s
-
     zone_object_ownership = np.sum(object_ownership, axis=0)
-
     node_shares = compute_node_shares(cols, rows, object_ownership, zone_object_ownership, q2regions)
+
     p_local_at_node, p_local_forward, p_steal, p_remote_fwd = compute_probabilities(cols, rows, node_shares, locality, p_remote_steal)
 
 
     p2_counts_local = compute_local_p2_counts(cols, rows, q2regions, node_shares, locality, client_contact_probability, R)
+
+    print "p2_counts_local:"
+    print p2_counts_local
+
     p2_counts_remote = compute_remote_p2_counts(cols, rows, node_shares, locality, client_contact_probability, R)
 
+    print "p2_counts_remote:"
+    print p2_counts_remote
+
     p2_counts = p2_counts_local + p2_counts_remote
+
+    print "p2_counts_total:"
+    print p2_counts
 
     mu_round = 1.0 / p2_counts
 
 
     queue_wait = compute_queue_wait(cols, rows, q1s, q2regions, p_local_at_node, p_local_forward, p_remote_fwd, p_steal,
-                            mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, mu_round, sigma_r_s, n_p)
+                            mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, ttx_s, ttx_stddev_s, mu_round, sigma_r_s, n_p)
 
 
     l_loc = compute_local_phase2(cols, rows, mu_local_s, sigma_local_s, mu_ms_s, sigma_ms_s, mu_md_s,
@@ -277,3 +311,43 @@ def model_random_round_arrival(cols, rows, q1nodes_per_column, q1s, q2regions, q
     L_average_round = L_local_ops + L_remote_ops
 
     return L_local_ops, L_remote_ops, L_average_round
+
+
+def model_dynamo_random_round_arrival(cols, rows, q2regions, q2nodes_per_column, mu_local,
+                               sigma_local, mu_remote, sigma_remote, mu_ms, sigma_ms, mu_md, ttx, ttx_stddev, object_ownership,
+                               sigma_md, n_p, mu_r, sigma_r, client_contact_probability, locality, p_remote_steal):
+    # convert everything to seconds
+    mu_local_s = mu_local / 1000
+    sigma_local_s = sigma_local / 1000
+    mu_ms_s = mu_ms / 1000
+    mu_md_s = mu_md / 1000
+    sigma_ms_s = sigma_ms / 1000
+    sigma_md_s = sigma_md / 1000
+    mu_remote_s = mu_remote / 1000
+    sigma_remote_s = sigma_remote / 1000
+    mu_r_s = mu_r / 1000
+    sigma_r_s = sigma_r / 1000
+    ttx_s = ttx / 1000
+    ttx_stddev_s = ttx_stddev / 1000
+
+    R = 1.0 / mu_r_s
+
+    print "R=" + str(R)
+
+    zone_object_ownership = np.sum(object_ownership, axis=0)
+
+    node_shares = compute_node_shares(cols, rows, object_ownership, zone_object_ownership, q2regions)
+    p2_counts_local = compute_local_p2_counts(cols, rows, q2regions, node_shares, locality, client_contact_probability, R)
+
+    p2_counts_remote = compute_remote_p2_counts(cols, rows, node_shares, locality, client_contact_probability, R)  # there is no such thing as remote op in Dynamo
+    p2_counts_local += p2_counts_remote
+
+    mu_round = 1.0 / p2_counts_local
+
+    queue_wait = compute_queue_wait_dynamo(cols, rows, q2regions,
+                            mu_md_s, sigma_md_s, mu_ms_s, sigma_ms_s, ttx_s, ttx_stddev_s, mu_round, sigma_r_s, n_p)
+
+    l_loc = compute_local_phase2(cols, rows, mu_local_s, sigma_local_s, mu_ms_s, sigma_ms_s, mu_md_s,
+                                           sigma_md_s, mu_remote_s, sigma_remote_s, queue_wait, q2regions, q2nodes_per_column)
+
+    return l_loc

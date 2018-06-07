@@ -1,5 +1,12 @@
 import numpy as np
 import math
+import model
+
+
+def load_latencies(mu_net_filename, mu_net_std_dev_filename):
+    mu_remote = np.loadtxt(mu_net_filename, delimiter=",")
+    sigma_remote = np.loadtxt(mu_net_std_dev_filename, delimiter=",")
+    return mu_remote, sigma_remote
 
 def calc_quorums(mu_nodes):
     N = len(mu_nodes)
@@ -25,11 +32,17 @@ mu_net_std_dev_filename = "params/sigma_net_remote.csv"
 mu_local = 0.427  # network RTT mean in ms
 sigma_local = 0.0476  # network RTT sigma in ms
 
-mu_ms = 0.001  # message serialization overhead in ms
-sigma_ms = 0.005
+msgSize = 110  # 100 bytes
+netSpeed = 980e6  # 98 mbits/sec
+netSpeedStdDev = 30e5  # 0.3 mbits/sec
 
-mu_md = 0.025  # message deserialization overhead in ms
-sigma_md = 0.015
+ttx, ttx_stddev = model.computeTTX(msgSize=msgSize, netSpeed=netSpeed, netSpeedStdDev=netSpeedStdDev)  # time to transmit in ms
+
+mu_ms = 0.002  # message serialization overhead in ms
+sigma_ms = 0.010
+
+mu_md = 0.050  # message deserialization overhead in ms
+sigma_md = 0.030
 
 n_p = 1  # number of pipelines
 

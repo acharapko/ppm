@@ -4,6 +4,10 @@ import math
 
 # Third version of the model
 
+def computeRmax(N, n_p, mu_md, mu_ms, ttx):
+     Rmax = n_p / (N * (mu_md + ttx) + 2 * (mu_ms + ttx)) * 1000
+     return Rmax
+
 ''' SIMULATION '''
 # This function simulates multi-paxos every round and the pipeline at the round leader.
 # It only accounts for phase-2 repeats
@@ -20,7 +24,7 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
     mu_r_s = mu_r / 1000
     sigma_r_s = sigma_r / 1000
 
-    Rmax = n_p / (N * mu_md + 2 * mu_ms) * 1000
+    Rmax = computeRmax(N, n_p, mu_md, mu_ms)
 
     rtt_sigma_s = math.sqrt(sigma_local_s ** 2 + sigma_ms_s ** 2 + sigma_md_s ** 2)
 
@@ -93,7 +97,7 @@ def sim(t, N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, n_p, 
 # network variability may have larger effects.
 
 
-def model_random_round_arrival(N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, mu_r, n_p, sigma_r, sim_clients=False):
+def model_random_round_arrival(N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu_md, sigma_md, ttx, ttx_stddev, mu_r, n_p, sigma_r, sim_clients=False):
     # convert everything to seconds
     mu_local_s = mu_local / 1000
     sigma_local_s = sigma_local / 1000
@@ -103,24 +107,27 @@ def model_random_round_arrival(N, qs, mu_local, sigma_local, mu_ms, sigma_ms, mu
     sigma_md_s = sigma_md / 1000
     mu_r_s = mu_r / 1000
     sigma_r_s = sigma_r / 1000
+    ttx_s = ttx / 1000
+    ttx_stddev_s = ttx_stddev / 1000
 
     R = 1000.0/mu_r
 
     rtt_sigma_s = math.sqrt(sigma_local_s ** 2 + sigma_ms_s ** 2 + sigma_md_s ** 2)
-    num_serialize = N
-    num_deserialize = 2
+    num_serialize = 2
+    num_deserialize = N
     if not sim_clients:
         num_serialize -= 1
         num_deserialize -= 1
 
-    wait_queue = model.marchal_mean_queue_wait_time(num_d=num_serialize, num_s=num_deserialize, mu_md_s=mu_md_s,
-                                                    sigma_md_s=sigma_md_s, mu_ms_s=mu_ms_s, sigma_ms_s=sigma_ms_s,
-                                                    n_p=n_p, mu_r_s=mu_r_s, sigma_r_s=sigma_r_s)
+    wait_queue = model.marchal_mean_queue_wait_time(num_d=num_deserialize, num_s=num_serialize, mu_md_s=mu_md_s,
+                                                    sigma_md_s=sigma_md_s, mu_ms_s=mu_ms_s, ttx_s=ttx_s,
+                                                    ttx_stddev_s=ttx_stddev_s,
+                                                    sigma_ms_s=sigma_ms_s, n_p=n_p, mu_r_s=mu_r_s, sigma_r_s=sigma_r_s)
 
-    r_q1 = model.approx_k_order_stat(mu_local_s + mu_ms_s + mu_md_s, rtt_sigma_s, qs - 1, N - 1)
+    r_q1 = model.approx_k_order_stat(mu_local_s + mu_ms_s + mu_md_s + 2 * ttx_s, rtt_sigma_s, qs - 1, N - 1)
 
-    Lr = mu_ms_s + r_q1 + wait_queue + mu_md_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
+    Lr = mu_ms_s + r_q1 + wait_queue + mu_md_s + 2 * ttx_s  # T_r = m_s + r_{lq-1} + c_{lq-1} + m_d
     if sim_clients:
-        Lr += mu_local_s + mu_ms_s + mu_ms_s
+        Lr += mu_local_s + mu_ms_s + mu_md_s + 2 * ttx_s
 
     return R, Lr

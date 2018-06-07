@@ -1,4 +1,5 @@
 import numpy as np
+import model
 
 #  REFERENCE SAMPLE VALUES FOR MULTIPAXOS/FPAXOS PARAMETERS
 t = 60  # sim duration in seconds
@@ -9,6 +10,15 @@ qs = N / 2 + 1  # quorum size. For Paxos it is majority
 mu_local = 0.427  # network RTT mean in ms
 sigma_local = 0.0476  # network RTT sigma in ms
 
+msgSize = 100  # 100 bytes
+netSpeed = 980e6  # 98 mbits/sec
+netSpeedStdDev = 30e5  # 0.3 mbits/sec
+
+ttx, ttx_stddev = model.computeTTX(msgSize=msgSize, netSpeed=netSpeed, netSpeedStdDev=netSpeedStdDev)  # time to transmit in ms
+
+print ttx
+print ttx_stddev
+
 mu_ms = 0.001  # message serialization overhead in ms
 sigma_ms = 0.005
 
@@ -17,7 +27,7 @@ sigma_md = 0.015
 
 n_p = 1  # number of pipelines
 
-R = 6000  # Throughput in rounds/sec
+R = 99  # Throughput in rounds/sec
 mu_r = 1000.0 / R
 sigma_r = mu_r / 0.5  # give it some good round spread
 

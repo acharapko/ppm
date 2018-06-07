@@ -1,4 +1,5 @@
 import numpy as np
+import model as model
 
 # REFERENCE SAMPLE VALUES FOR WPAXOS PARAMETERS '''
 
@@ -6,8 +7,23 @@ locality_filename = "params/zone_locality.csv"
 mu_net_filename = "params/mu_net_remote.csv"
 mu_net_std_dev_filename = "params/sigma_net_remote.csv"
 
+def load_locality(locality_filename):
+    locality = np.loadtxt(locality_filename, delimiter=",").tolist()
+    return locality
+
+def load_latencies(mu_net_filename, mu_net_std_dev_filename):
+    mu_remote = np.loadtxt(mu_net_filename, delimiter=",")
+    sigma_remote = np.loadtxt(mu_net_std_dev_filename, delimiter=",")
+    return mu_remote, sigma_remote
+
 # set the grid
 rows = 3
+
+msgSize = 100  # 100 bytes
+netSpeed = 980e6  # 98 mbits/sec
+netSpeedStdDev = 30e5  # 0.3 mbits/sec
+
+ttx, ttx_stddev = model.computeTTX(msgSize=msgSize, netSpeed=netSpeed, netSpeedStdDev=netSpeedStdDev)  # time to transmit in ms
 
 p_remote_steal = 0.01
 
@@ -27,15 +43,11 @@ mu_r = 1000.0 / R
 sigma_r = mu_r / 0.5  # give it some good round spread
 
 # regions form a graph with edges being communication links, and weights being mean communication latencies
-mu_remote = np.loadtxt(mu_net_filename, delimiter=",")
-print mu_remote
-# and weights being std. deviations as well
-sigma_remote = np.loadtxt(mu_net_std_dev_filename, delimiter=",")
+mu_remote, sigma_remote = load_latencies(mu_net_filename, mu_net_std_dev_filename)
 
-locality = np.loadtxt(locality_filename, delimiter=",").tolist()
+locality =load_locality(locality_filename)
 
 columns = len(mu_remote)  # columns is number of regions
-
 # quorum sizes
 q1nodes_per_column = 2
 q1s = 1 * q1nodes_per_column * columns  # q1 size: rows x nodes/per column * columns

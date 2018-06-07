@@ -14,14 +14,16 @@ n_p = 1
 fig, ax = plt.subplots()
 plt.xlabel('Throughput (rounds/sec)')
 plt.ylabel('Latency (ms)')
-plt.title('Paxos/FPaxos Throughput vs. Latency')
+#plt.title('Paxos/FPaxos Throughput vs. Latency')
 plt.rc('lines', linewidth=1)
-plt.rc('axes', prop_cycle=(cycler('color', ['r', 'g', 'b', 'y', 'k'])))
+colors = ['g', 'r', 'b', 'c', 'k']
+markers = ['o', 's', '*', 'X', 'D']
 
+colorID = 0
 
-for n in range(7, 11, 2):
+for n in range(5, 11, 4):
     lats = {}
-    Rmax = n_p / (n * params.mu_md + 2 * params.mu_ms) * 1000
+    Rmax = model.computeRmax(n, n_p, params.mu_md, params.mu_ms, params.ttx)
     end_tp = int(Rmax) + 1
     print "end tp = " + str(end_tp)
     print "Rmax = " + str(Rmax)
@@ -39,6 +41,8 @@ for n in range(7, 11, 2):
                 sigma_ms=params.sigma_ms,
                 mu_md=params.mu_md,
                 sigma_md=params.sigma_md,
+                ttx=params.ttx,
+                ttx_stddev=params.ttx_stddev,
                 n_p=n_p,
                 mu_r=mu_r,
                 sigma_r=sigma_r,
@@ -57,11 +61,11 @@ for n in range(7, 11, 2):
     tp = range(start_tp, end_tp, tp_step)
     lat = [lats[key] for key in sorted(lats.keys(), reverse=False)]
     print lat
-    p2 = ax.plot(tp, lat, marker='o', label="Paxos " + str(n) + " Nodes")
-
+    p2 = ax.plot(tp, lat, marker=markers[colorID % 5], color=colors[colorID % 5], label="Paxos " + str(n) + " Nodes")
+    colorID += 1
 n = 9
 lats = {}
-Rmax = n_p / (n * params.mu_md + 2 * params.mu_ms) * 1000
+Rmax = model.computeRmax(n, n_p, params.mu_md, params.mu_ms, params.ttx)
 end_tp = int(Rmax) + 1
 print "end tp = " + str(end_tp)
 print "Rmax = " + str(Rmax)
@@ -79,6 +83,8 @@ for r in range(start_tp, end_tp, tp_step):
             sigma_ms=params.sigma_ms,
             mu_md=params.mu_md,
             sigma_md=params.sigma_md,
+            ttx=params.ttx,
+            ttx_stddev=params.ttx_stddev,
             n_p=n_p,
             mu_r=mu_r,
             sigma_r=sigma_r,
@@ -97,7 +103,7 @@ for r in range(start_tp, end_tp, tp_step):
 tp = range(start_tp, end_tp, tp_step)
 lat = [lats[key] for key in sorted(lats.keys(), reverse=False)]
 print lat
-p2 = ax.plot(tp, lat, marker='o', label="FPaxos " + str(n) + " Nodes (|q2|=3)")
+p2 = ax.plot(tp, lat, marker=markers[colorID % 5], color=colors[colorID % 5], label="FPaxos " + str(n) + " Nodes (|q2|=3)")
 '''
 n = 6
 lats = {}
