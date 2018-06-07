@@ -61,6 +61,8 @@ if args.model:
         sigma_ms=args.sigma_ms,
         mu_md=args.mu_md,
         sigma_md=args.sigma_md,
+        ttx=params.ttx,
+        ttx_stddev=params.ttx_stddev,
         n_p=args.p,
         mu_r=args.mu_r,
         sigma_r=args.sigma_r,
